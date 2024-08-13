@@ -11,6 +11,6 @@
 | setHighlightBottomPadding | 设置高亮区域下padding                                                                                                                                                        |
 | setNextTipsViewId         | 设置点击执行下一步的按钮id                                                                                                                                                        |
 | setNextTipsView           | 设置点击执行下一步的按钮view                                                                                                                                                      |
-| setOnlyButtonClick        | 设置只有点击指定按钮才进行下一步，整个遮罩点击下一步将失效，默认为不设置，一旦设置，必须要设置（setNextTipsViewId、setNextTipsView）指定的按钮 id ，或view                                                                                    |                                                                                                                                                       |
+| setOnlyButtonClick        | 设置只有点击指定按钮才进行下一步，整个遮罩点击下一步将失效，默认为不设置，一旦设置，必须要设置（setNextTipsViewId、setNextTipsView）遮罩层内指定的按钮 id ，或view                                                                 |                                                                                                                                                       |
 | build                     | 返回一个 [HighlightParameter](https://github.com/MrRongHuang/project_lib/blob/master/highlight_pro/src/main/java/com/koi/highlightpro/parameter/HighlightParameter.kt) 对象 |
 
