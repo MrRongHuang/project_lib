@@ -64,7 +64,6 @@ dependencies {
     implementation 'com.github.liangjingkanji:soft-input-event:1.0.9' // 键盘遮挡
     implementation 'com.github.liangjingkanji:spannable:1.2.7' // 富文本
 
-    implementation 'com.github.getActivity:TitleBar:10.5'
     // 使用高亮库
     implementation project(path: ':highlight_pro')
     // Shape 框架：https://github.com/getActivity/ShapeView
