@@ -30,6 +30,11 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
                 toast("跳转到高亮效果")
                 openActivity<HighLightActivity>()
             }
+
+            binding.tvRichText -> {
+                toast("跳转到富文本编辑")
+                openActivity<RichTextEditActivity>()
+            }
         }
     }
 

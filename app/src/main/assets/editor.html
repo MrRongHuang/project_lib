@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quill Editor</title>
+    <link href="quill.snow.css" rel="stylesheet">
+    <style>
+        #editor-container {
+            margin: 0px;
+            padding: 0px;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+        }
+        #editor {
+            margin: 0px;
+            padding: 0px;
+            width: 100%;
+            height: 100%;
+            border: none;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .ql-editor {
+            font-size: 14px;
+            margin: 0px;
+            padding: 10px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .ql-editor.ql-blank::before {
+            font-style: normal;
+            color: #999;
+            font-size: 14px;
+            margin-left: -4px;
+            margin-top: 8px;
+            content: attr(data-placeholder);
+        }
+        .ql-editor p {
+            margin-top: 8px;
+            margin-bottom: 8px;
+        }
+        .ql-editor img {
+            width: 100%;
+            height: auto;
+        }
+        .ql-editor video {
+            width: 100%;
+            height: auto;
+        }
+        .ql-editor .video-blot {
+            display: inline-block; /* 使视频作为内联块元素显示 */
+            position: relative; /* 使得我们可以定位选中效果 */
+        }
+
+        .ql-editor .video-blot:focus {
+            outline: none; /* 移除默认焦点样式 */
+            border: 2px dashed #007bff; /* 添加选中效果的边框 */
+            padding: 2px; /* 调整边框位置 */
+        }
+    </style>
+</head>
+<body>
+    <div id="editor-container">
+        <div id="editor"></div>
+    </div>
+
+    <!-- Include the Quill library -->
+    <script src="quill.js"></script>
+
+    <!-- Initialize Quill editor -->
+    <script>
+        delete Quill.imports['formats/video'];
+        const BlockEmbed = Quill.import('blots/block/embed');
+                
+        class VideoBlot extends BlockEmbed {
+            static create(value) {
+                let node = super.create();
+                node.setAttribute('src', value.url);
+                node.setAttribute('controls', true);
+                node.setAttribute('playsinline', false);
+                node.setAttribute('tabindex', 0);
+                node.setAttribute('contenteditable', 'true');
+                node.style.display = 'inline-block';
+                node.classList.add('video-blot');
+                return node;
+            }
+            
+            static value(node) {
+                return {
+                    url: node.getAttribute('src'),
+                };
+            }
+        }
+        
+        VideoBlot.blotName = 'video';
+        VideoBlot.tagName = 'video';
+        
+        Quill.register(VideoBlot);
+        
+        class LinkBlot extends Quill.import('formats/link') {
+            static create(value) {
+                let node = super.create(value);
+                node.setAttribute('href', value);
+                return node;
+            }
+            
+            static formats(node) {
+                return node.getAttribute('href');
+            }
+            
+            format(name, value) {
+                if (name === 'link') {
+                    this.domNode.setAttribute('href', value);
+                } else {
+                    super.format(name, value);
+                }
+            }
+        }
+        
+        Quill.register(LinkBlot, true);
+        
+        var quill = new Quill('#editor', {
+            theme: 'snow',
+            modules: {
+                toolbar: false, // 关闭工具栏
+                clipboard: true,
+                history: {
+                    delay: 50,
+                    maxStack: 500,
+                    userOnly: false
+                }
+            }
+        });
+        
+        // 用于保存光标位置
+        let saveRange = null;
+        let isAndroid = getMobileOS() === 'Android';
+        let placeholder = null;
+        
+        function getMobileOS() {
+            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+            // 判断是否是 iOS 设备
+            if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
+                return 'iOS';
+            }
+            // 判断是否是 Android 设备
+            if (/android/i.test(userAgent)) {
+                return 'Android';
+            }
+            return 'unknown';
+        }
+        
+        // 设置HTML内容
+        function setHTMLContent(content) {
+            if (getTextLengthFromHTML(content) > 0) {
+                quill.root.setAttribute('data-placeholder', '');
+            }
+            // 插入 HTML 内容
+            quill.clipboard.dangerouslyPasteHTML(0, content);
+            // 确保光标位置正确，并触发渲染
+            quill.setSelection(quill.getLength());
+        }
+        
+        // 从HTML中获取文本的长度
+        function getTextLengthFromHTML(html) {
+            // 创建一个临时的 DOM 元素
+            const temporaryElement = document.createElement('div');
+            temporaryElement.innerHTML = html;
+            // 获取纯文本内容
+            const plainText = temporaryElement.textContent || temporaryElement.innerText || '';
+            // 返回纯文本的长度
+            return plainText.length;
+        }
+        
+        // 设置占位符
+        function setPlaceholder(placeholderText) {
+            placeholder = placeholderText;
+            // 获取 Quill 编辑器的根元素
+            const editorRoot = quill.root;
+            // 修改 data-placeholder 属性
+            editorRoot.setAttribute('data-placeholder', placeholder);
+            // 更新编辑器以确保新占位符生效
+            if (editorRoot.classList.contains('ql-blank')) {
+                editorRoot.classList.remove('ql-blank');
+                setTimeout(() => editorRoot.classList.add('ql-blank'), 0);
+            }
+        }
+        
+        // 设置编辑器高度
+        function setEditorHeight(height) {
+            // 获取 Quill 编辑器的容器元素
+            const editorContainer = document.querySelector('#editor-container');
+            // 设置新的高度
+            editorContainer.style.height = height + 'px';
+        }
+        
+        let lastIsValid = null;
+        // 检查有效的HTML内容
+        function checkValidHTML() {
+            // 获取编辑器的 HTML 内容
+            const editorContent = quill.root.innerHTML;
+
+            // 创建一个 DOM 元素来解析 HTML
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = editorContent;
+
+            // 选择所有段落元素
+            const paragraphs = tempDiv.querySelectorAll('p');
+
+            // 遍历段落并移除空段落或全为空格的段落
+            paragraphs.forEach(p => {
+                // 检查段落是否为空或只包含空格
+                if (!p.textContent.trim() || p.innerHTML.trim() === '<br>') {
+                    // 移除空段落或仅包含空格的段落
+                    p.remove();
+                }
+            });
+
+            // 返回过滤后的 HTML 内容
+            let isValid = tempDiv.innerHTML.trim().length > 0;
+            
+            if (isValid !== lastIsValid) {
+                if (isAndroid && window.editor) {
+                    window.editor.validStateChanged(isValid);
+                } else {
+                    window.webkit.messageHandlers.validStateChanged.postMessage(isValid);
+                }
+            }
+            
+            lastIsValid = isValid;
+        }
+        
+        let lastTextLength = null;
+        // 检查有效的文本
+        function checkValidText() {
+            let textLength = quill.getText().replace(/\n/g, '').length;
+            if (textLength !== lastTextLength) {
+                if (isAndroid && window.editor) {
+                    window.editor.textLengthChanged(textLength);
+                } else {
+                    window.webkit.messageHandlers.textLengthChanged.postMessage(textLength);
+                }
+            }
+            lastTextLength = textLength;
+        }
+        
+
+        // 获取不包含换行及空格的纯文本
+        function getBriefContent() {
+            const text = quill.getText().replace(/\n/g, '').replace(/\s/g, '');
+            return text;
+        }
+        
+        let lastCanUndo = null;
+        let lastCanRedo = null;
+        
+        // 检查撤销重做状态
+        function checkUndoRedoState() {
+            const undoStack = quill.history.stack.undo;
+            const redoStack = quill.history.stack.redo;
+            const canUndo = undoStack.length > 0;
+            const canRedo = redoStack.length > 0;
+            const data = {
+                canUndo: canUndo,
+                canRedo: canRedo
+            };
+            if (canUndo !== lastCanUndo || canRedo !== lastCanRedo) {
+                if (isAndroid && window.editor) {
+                    window.editor.undoRedoState(JSON.stringify(data));
+                } else {
+                    window.webkit.messageHandlers.undoRedoState.postMessage(data);
+                }
+            }
+            lastCanUndo = canUndo;
+            lastCanRedo = canRedo;
+        }
+        
+        let lastIsH1Active = null;
+        
+        // 检查H1状态
+        function checkH1State() {
+            let format = quill.getFormat();
+            let isH1Active = format.header === 1;
+            if (isH1Active !== lastIsH1Active) {
+                if (isAndroid && window.editor) {
+                    window.editor.h1State(JSON.stringify(isH1Active));
+                } else {
+                    window.webkit.messageHandlers.h1State.postMessage(isH1Active);
+                }
+            }
+            lastIsH1Active = isH1Active;
+        }
+        
+        let lastIsBoldActive = null;
+        
+        // 检查加粗状态
+        function checkBoldState() {
+            let format = quill.getFormat();
+            let isBoldActive = !!format.bold;
+            if (isBoldActive !== lastIsBoldActive) {
+                if (isAndroid && window.editor) {
+                    window.editor.boldState(isBoldActive);
+                } else {
+                    window.webkit.messageHandlers.boldState.postMessage(isBoldActive);
+                }
+            }
+            lastIsBoldActive = isBoldActive;
+        }
+        
+        let lastIsItalicActive = null;
+        
+        // 检查斜体状态
+        function checkItalicState() {
+            let format = quill.getFormat();
+            let isItalicActive = !!format.italic;
+            if (isItalicActive !== lastIsItalicActive) {
+                if (isAndroid && window.editor) {
+                    window.editor.italicState(JSON.stringify(isItalicActive));
+                } else {
+                    window.webkit.messageHandlers.italicState.postMessage(isItalicActive);
+                }
+            }
+            lastIsItalicActive = isItalicActive;
+        }
+        
+        let lastIsUnderlineActive = null;
+        
+        // 检查下划线状态
+        function checkUnderlineState() {
+            let format = quill.getFormat();
+            let isUnderlineActive = !!format.underline;
+            if (isUnderlineActive !== lastIsUnderlineActive) {
+                if (isAndroid && window.editor) {
+                    window.editor.underlineState(JSON.stringify(isUnderlineActive));
+                } else {
+                    window.webkit.messageHandlers.underlineState.postMessage(isUnderlineActive);
+                }
+            }
+            lastIsUnderlineActive = isUnderlineActive;
+        }
+        
+        let lastIsOrderedListActive = null;
+        
+        // 检查有序列表状态
+        function checkOrderedListState() {
+            let format = quill.getFormat();
+            let isOrderedListActive = format.list === 'ordered';
+            if (isOrderedListActive !== lastIsOrderedListActive) {
+                if (isAndroid && window.editor) {
+                    window.editor.orderedListState(JSON.stringify(isOrderedListActive));
+                } else {
+                    window.webkit.messageHandlers.orderedListState.postMessage(isOrderedListActive);
+                }
+            }
+            lastIsOrderedListActive = isOrderedListActive;
+        }
+        
+        let lastIsUnorderedListActive = null;
+        
+        // 检查无序列表状态
+        function checkUnorderedListState() {
+            let format = quill.getFormat();
+            let isUnorderedListActive = format.list === 'bullet';
+            if (isUnorderedListActive !== lastIsUnorderedListActive) {
+                if (isAndroid && window.editor) {
+                    window.editor.unorderedListState(JSON.stringify(isUnorderedListActive));
+                } else {
+                    window.webkit.messageHandlers.unorderedListState.postMessage(isUnorderedListActive);
+                }
+            }
+            lastIsUnorderedListActive = isUnorderedListActive;
+        }
+        
+        let lastIsLinkActive = null;
+        
+        // 检查链接状态
+        function checkLinkState() {
+            const selection = quill.getSelection();
+            let format = quill.getFormat(selection);
+            let isLinkActive = !!format.link;
+            if (isLinkActive !== lastIsLinkActive) {
+                if (isAndroid && window.editor) {
+                    window.editor.linkState(JSON.stringify(isLinkActive));
+                } else {
+                    window.webkit.messageHandlers.linkState.postMessage(isLinkActive);
+                }
+            }
+            lastIsLinkActive = isLinkActive;
+        }
+        
+        // 撤销
+        function undo() {
+            quill.history.undo();
+            checkUndoRedoStatus();
+        }
+        
+        // 重做
+        function redo() {
+            quill.history.redo();
+            checkUndoRedoStatus();
+        }
+        
+        // 标题段落
+        function toggleHeadingParagraph() {
+            let format = quill.getFormat();
+            if (format.header === 1) {
+                quill.format('header', false);
+            } else {
+                quill.format('header', 1);
+            }
+            checkH1State();
+        }
+        
+        // 加粗
+        function toggleBold() {
+            var format = quill.getFormat();
+            quill.format('bold', !format.bold);
+            checkBoldState();
+        }
+        
+        // 斜体
+        function toggleItalic() {
+            let format = quill.getFormat();
+            quill.format('italic', !format.italic);
+            checkItalicState();
+        }
+        
+        // 下划线
+        function toggleUnderline() {
+            let format = quill.getFormat();
+            quill.format('underline', !format.underline);
+            checkUnderlineState();
+        }
+        
+        // 有序列表
+        function toggleOrderedList() {
+            let format = quill.getFormat();
+            quill.format('list', format.list === 'ordered' ? false : 'ordered');
+            checkOrderedListState();
+        }
+        
+        // 无序列表
+        function toggleUnorderedList() {
+            let format = quill.getFormat();
+            quill.format('list', format.list === 'bullet' ? false : 'bullet');
+            checkUnorderedListState();
+        }
+        
+        // 聚焦(恢复上一次光标所在位置)
+        function focus() {
+            // 聚焦 Quill 编辑器
+            quill.focus();
+            if (saveRange) {
+                quill.setSelection(saveRange.index, saveRange.length);
+            }
+        }
+        
+        // 失焦(保存当前光标所在位置)
+        function blur() {
+            saveRange = quill.getSelection();
+        }
+        
+        // 获取选中的文本
+        function getSelectedText() {
+            // 获取当前选区
+            const selection = quill.getSelection();
+            if (selection && selection.length > 0) {
+                // 获取选中的文本
+                const selectedText = quill.getText(selection.index, selection.length);
+                return selectedText;
+            } else {
+                return null;
+            }
+        }
+        
+        // 插入链接
+        function insertLink(linkURL, linkText) {
+            const selection = quill.getSelection();
+            if (selection) {
+                quill.deleteText(selection.index, selection.length);
+                quill.insertText(selection.index, linkText, { link: linkURL });
+            } else {
+                quill.insertText(quill.getLength() - 1, linkText, { link: linkURL });
+            }
+            checkLinkState();
+        }
+        
+        // 获取光标所在位置的链接信息
+        function getLinkInfo() {
+            const selection = quill.getSelection();
+            if (!selection) {
+                return;
+            }
+            
+            // 获取光标位置的叶节点
+            const [leaf] = quill.getLeaf(selection.index);
+            if (leaf && leaf.parent && leaf.parent.domNode) {
+                // 找到最近的 <a> 标签
+                const linkElement = leaf.parent.domNode.closest('a');
+                if (linkElement) {
+                    // 获取链接的 href
+                    const linkURL = linkElement.getAttribute('href');
+                    // 获取链接的文本
+                    const text = linkElement.textContent;
+                    const data = {
+                        link: linkURL,
+                        linkText: text
+                    };
+                    if (isAndroid && window.editor) {
+                        window.editor.editLink(JSON.stringify(data));
+                    } else {
+                        window.webkit.messageHandlers.editLink.postMessage(data);
+                    }
+                }
+            }
+        }
+        
+        // 编辑链接
+        function editLink(linkURL, linkText) {
+            const selection = quill.getSelection();
+            if (!selection) {
+                return;
+            }
+            
+            // 获取光标所在的叶子节点及其相对位置
+            const [leaf, offset] = quill.getLeaf(selection.index);
+            // 检查叶子节点是否为文本节点，并检查它的格式是否包含链接
+            if (leaf.text && leaf.parent && leaf.parent.formats().link) {
+                // 获取链接的完整起始和结束位置
+                const start = selection.index - offset;
+                const end = start + leaf.text.length;
+                // 删除旧链接并插入新的链接
+                quill.deleteText(start, end - start);
+                quill.insertText(start, linkText, 'link', linkURL);
+                // 设置光标位置
+                quill.setSelection(start + linkText.length);
+            }
+        }
+        
+        // 插入图片(支持多个)
+        function insertImages(imageURLList) {
+            // 获取当前光标位置
+            const selection = quill.getSelection();
+            if (selection) {
+                let currentIndex = selection.index;
+                imageURLList.forEach(imageURL => {
+                    // 插入图片
+                    quill.insertEmbed(currentIndex, 'image', imageURL);
+                    // 更新位置，确保下一个插入的位置正确
+                    currentIndex += 1;
+                });
+                // 设置光标到最后一个插入图片的位置之后
+                quill.setSelection(currentIndex);
+                // 使用 setTimeout 添加延迟，等待渲染完成后再滚动
+                setTimeout(() => {
+                    // 将光标滚动到可见区域
+                    quill.scrollIntoView();
+                }, 100);
+            }
+        }
+        
+        // 插入视频(支持多个)
+        function insertVideos(videoURLList) {
+            // 获取当前光标位置
+            const selection = quill.getSelection();
+            if (selection) {
+                let currentIndex = selection.index;
+                videoURLList.forEach(videoURL => {
+                    // 插入视频
+                    quill.insertEmbed(currentIndex, 'video', { url: videoURL });
+                    // 更新位置，确保下一个插入的位置正确
+                    currentIndex += 1;
+                });
+                // 设置光标到最后一个插入视频的位置之后
+                quill.setSelection(currentIndex);
+                // 使用 setTimeout 添加延迟，等待渲染完成后再滚动
+                setTimeout(() => {
+                    // 将光标滚动到可见区域
+                    quill.scrollIntoView();
+                }, 500);
+            }
+        }
+        
+        // 获取已有图片数量
+        function getImageCount() {
+            const delta = quill.getContents();
+            let imageCount = 0;
+
+            delta.ops.forEach(op => {
+                if (op.insert && typeof op.insert === 'object' && op.insert.image) {
+                    imageCount++;
+                }
+            });
+
+            return imageCount;
+        }
+        
+        // 获取已有视频数量
+        function getVideoCount() {
+            const delta = quill.getContents();
+            let videoCount = 0;
+
+            delta.ops.forEach(op => {
+                if (op.insert && typeof op.insert === 'object' && op.insert.video) {
+                    videoCount++;
+                }
+            });
+
+            return videoCount;
+        }
+        
+        let maxLength = 1000;
+        
+        function setMaxLength(length) {
+            maxLength = length;
+        }
+        
+        // 检查是否超出最大长度限制
+        function checkMaxLength() {
+            const text = quill.getText().replace(/\n/g, '');
+            if (text.length > maxLength) {
+                quill.deleteText(maxLength, text.length - maxLength);
+                quill.setSelection(maxLength);
+            }
+        }
+        
+        function isDeleteOrBackspace(event) {
+            return event.inputType === 'deleteContentBackward' || event.inputType === 'deleteContentForward';
+        }
+        
+        // 判断是否在输入合成中
+        let isComposing = false;
+        
+        // 检查并切换占位符的显示
+        function checkAndTogglePlaceholder() {
+            const text = quill.getText().replace(/\n/g, '');
+            if (text.length == 0) {
+                quill.root.setAttribute('data-placeholder', '');
+            } else {
+                quill.root.setAttribute('data-placeholder', placeholder);
+            }
+        }
+        
+        // 聚焦
+        quill.root.addEventListener('focus', function (event) {
+            // 获取 Quill 编辑器的容器元素
+            const editorContainer = document.querySelector('#editor-container');
+            if (editorContainer.style.height !== '100%') {
+                // 设置新的高度
+                editorContainer.style.height = '100%';
+            }
+        });
+        
+        // 输入合成开始
+        quill.root.addEventListener('compositionstart', function (event) {
+            isComposing = true;
+            quill.root.setAttribute('data-placeholder', '');
+        });
+        
+        // 输入合成结束
+        quill.root.addEventListener('compositionend', function (event) {
+            isComposing = false;
+            checkAndTogglePlaceholder();
+        });
+        
+        // 处理 beforeinput 事件
+        quill.root.addEventListener('beforeinput', function (event) {
+            const text = quill.getText().replace(/\n/g, '');
+            if (text.length >= maxLength && !isDeleteOrBackspace(event)) {
+                event.preventDefault();
+            }
+        });
+        
+        let startX, startY, isScrolling = false;
+        quill.root.addEventListener('touchstart', function(event) {
+            const touch = event.touches[0];
+            startX = touch.clientX;
+            startY = touch.clientY;
+            isScrolling = false; // 重置滚动标志
+        });
+        
+        quill.root.addEventListener('touchmove', function(event) {
+            const touch = event.touches[0];
+            const moveX = touch.clientX;
+            const moveY = touch.clientY;
+
+            // 计算触摸点的移动距离
+            const diffX = Math.abs(moveX - startX);
+            const diffY = Math.abs(moveY - startY);
+
+            // 判断是否滚动
+            if (diffX > 10 || diffY > 10) { // 这里的 10 是阈值，根据实际需求调整
+                isScrolling = true;
+            }
+        });
+
+        // 监听触摸结束事件
+        quill.root.addEventListener('touchend', function(event) {
+            if (isScrolling) {
+                return;
+            }
+            
+            const touch = event.changedTouches[0]; // 获取触摸点信息
+
+            // 计算触摸的位置
+            const clientX = touch.clientX;
+            const clientY = touch.clientY;
+
+            const range = document.caretRangeFromPoint(clientX, clientY); // 获取触摸位置的光标位置
+
+            if (range) {
+                // 获取光标应插入的 Quill 位置
+                const blot = Quill.find(range.startContainer, true);
+                const blotIndex = blot.offset(quill.scroll);
+                const index = blotIndex + range.startOffset;
+
+                // 设置 Quill 光标到触摸位置
+                quill.setSelection(index, 0);
+
+                // 只在一定时间间隔内滚动一次，防止频繁滚动
+                const now = performance.now();
+                if (now - lastScrollTimestamp > 300) { // 300 毫秒的间隔
+                    lastScrollTimestamp = now;
+
+                    requestAnimationFrame(() => {
+                        quill.root.scrollIntoView({
+                            behavior: 'smooth', // 尝试使用 'auto' 以避免抖动
+                            block: 'end'
+                        });
+                    });
+                }
+            }
+        });
+
+        // 换行时清除关联格式
+        function resetFormatOnEnter(delta) {
+            const selection = quill.getSelection();
+            if (selection) {
+                // 检查 delta.ops 中是否有插入换行符的操作
+                const hasNewlineInsert = delta.ops.some(op => op.insert === '\n');
+                if (hasNewlineInsert) {
+                    // 获取当前格式
+                    const format = quill.getFormat(selection.index);
+                    // 如果光标在H1内，清除H1格式
+                    if (format.header === 1) {
+                        quill.format('header', false);
+                    }
+                    // 如果光标在加粗内，清除加粗格式
+                    if (format.bold) {
+                        quill.format('bold', false);
+                    }
+                    // 如果光标在斜体内，清除斜体格式
+                    if (format.italic) {
+                        quill.format('italic', false);
+                    }
+                    // 如果光标在下划线内，清除下划线格式
+                    if (format.underline) {
+                        quill.format('underline', false);
+                    }
+                    // 如果光标在链接内，清除链接格式
+                    if (format.link) {
+                        quill.format('link', false);
+                    }
+                }
+            }
+        }
+        
+        // 内容变更回调
+        quill.on('text-change', function(delta, oldDelta, source) {
+            checkMaxLength();
+            resetFormatOnEnter(delta);
+            checkUndoRedoState();
+            checkH1State();
+            checkBoldState();
+            checkItalicState();
+            checkUnderlineState();
+            checkOrderedListState();
+            checkUnorderedListState();
+            checkLinkState();
+            
+            if (isAndroid && window.editor) {
+                window.editor.contentChanged(quill.root.innerHTML);
+            } else {
+                window.webkit.messageHandlers.contentChanged.postMessage(quill.root.innerHTML);
+            }
+            checkValidHTML();
+            checkValidText();
+        });
+        
+        // 选中区域变更回调
+        quill.on('selection-change', function(range, oldRange, source) {
+            if (range === null && oldRange !== null) {
+                saveRange = oldRange;
+            }
+            if (range !== null && source === 'user') {
+                saveRange = range;
+            }
+            
+            checkH1State();
+            checkBoldState();
+            checkItalicState();
+            checkUnderlineState();
+            checkOrderedListState();
+            checkUnorderedListState();
+            checkLinkState();
+        });
+        
+        checkUndoRedoState();
+    </script>
+</body>
+</html>

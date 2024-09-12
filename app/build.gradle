@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'kotlin-kapt'
 }
 
 android {
@@ -45,6 +46,7 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     implementation 'androidx.navigation:navigation-fragment-ktx:2.6.0'
     implementation 'androidx.navigation:navigation-ui-ktx:2.6.0'
+    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.3.2"
     implementation 'com.github.CymChad:BaseRecyclerViewAdapterHelper:3.0.6'
 
     implementation 'com.github.liangjingkanji:Engine:0.0.74'
@@ -65,4 +67,13 @@ dependencies {
     implementation 'com.github.getActivity:TitleBar:10.5'
     // 使用高亮库
     implementation project(path: ':highlight_pro')
+    // Shape 框架：https://github.com/getActivity/ShapeView
+    implementation 'com.github.getActivity:ShapeView:8.5'
+    // 标题栏框架：https://github.com/getActivity/TitleBar
+    implementation 'com.github.getActivity:TitleBar:10.5'
+    //Gson解析：https://github.com/google/gson
+    implementation 'com.google.code.gson:gson:2.11.0'
+    //弹框 ：https://github.com/li-xiaojun/XPopup
+    implementation 'com.github.li-xiaojun:XPopup:2.10.0'
+
 }

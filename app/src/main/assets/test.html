@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Rich Text Editor</title>
+    <style>
+        #editor {
+            border: 1px solid #ccc;
+            min-height: 200px;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+        }
+        button {
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- 编辑器工具栏 -->
+<div>
+    <button onclick="document.execCommand('bold', false, '');">加粗</button>
+    <button onclick="document.execCommand('underline', false, '');">下划线</button>
+    <button onclick="document.execCommand('italic', false, '');">斜体</button>
+    <button onclick="document.execCommand('insertOrderedList', false, '');">有序列表</button>
+    <button onclick="document.execCommand('insertUnorderedList', false, '');">无序列表</button>
+    <button onclick="document.execCommand('formatBlock', false, '<h1>');">标题 1 (H1)</button>
+</div>
+
+<!-- 可编辑区域 -->
+<div id="editor" contenteditable="true">
+    在这里输入文字...
+</div>
+
+<script>
+        // 获取编辑器内容
+        function getHTMLContent() {
+            return document.getElementById('editor').innerHTML;
+        }
+
+        // 设置编辑器内容
+        function setHTMLContent(html) {
+            document.getElementById('editor').innerHTML = html;
+        }
+    </script>
+
+</body>
+</html>

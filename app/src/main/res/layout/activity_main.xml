@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layout>
+
     <data>
 
         <variable
@@ -7,6 +8,7 @@
             type="com.koi.projectlib.ui.ac.MainActivity" />
 
     </data>
+
     <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:app="http://schemas.android.com/apk/res-auto"
         xmlns:tools="http://schemas.android.com/tools"
@@ -18,8 +20,8 @@
             android:id="@+id/title_bar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:layout_constraintTop_toTopOf="parent"
             android:background="@color/teal_200"
+            app:layout_constraintTop_toTopOf="parent"
             app:title="ProjectLibDemo" />
 
         <androidx.appcompat.widget.LinearLayoutCompat
@@ -34,12 +36,24 @@
 
             <androidx.appcompat.widget.AppCompatTextView
                 android:id="@+id/tvHighLight"
+                click="@{v}"
                 android:layout_width="match_parent"
                 android:layout_height="45dp"
                 android:background="@color/teal_200"
                 android:gravity="center"
-                click="@{v}"
                 android:text="布局高亮效果"
+                android:textColor="@color/white"
+                android:textSize="16sp" />
+
+            <androidx.appcompat.widget.AppCompatTextView
+                android:id="@+id/tvRichText"
+                click="@{v}"
+                android:layout_width="match_parent"
+                android:layout_height="45dp"
+                android:layout_marginTop="@dimen/dp_10"
+                android:background="@color/teal_200"
+                android:gravity="center"
+                android:text="富文本编辑"
                 android:textColor="@color/white"
                 android:textSize="16sp" />
 
