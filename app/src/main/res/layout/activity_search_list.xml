@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
+
+
+    <data>
+
+        <variable
+            name="v"
+            type="com.koi.projectlib.ui.ac.SearchListActivity" />
+
+    </data>
+
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        tools:context=".ui.ac.SearchListActivity">
+
+        <com.hjq.bar.TitleBar
+            android:id="@+id/title_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/teal_200"
+            app:layout_constraintTop_toTopOf="parent"
+            app:title="带展开收起功能的搜索历史" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintTop_toBottomOf="@id/title_bar">
+
+            <com.google.android.flexbox.FlexboxLayout
+                android:id="@+id/flexboxLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:alignItems="center"
+                app:flexWrap="wrap"
+                app:justifyContent="flex_start" />
+
+            <Button
+                android:id="@+id/buttonToggle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Show More" />
+
+        </LinearLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</layout>
+

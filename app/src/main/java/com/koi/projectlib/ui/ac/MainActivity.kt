@@ -35,6 +35,18 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
                 toast("跳转到富文本编辑")
                 openActivity<RichTextEditActivity>()
             }
+
+            binding.tvSearchList -> {
+                openActivity<SearchListActivity>()
+            }
+
+            binding.tvImgList -> {
+                openActivity<ExpandedImgListActivity>()
+            }
+
+            binding.tvTest -> {
+                openActivity<TestActivity>()
+            }
         }
     }
 

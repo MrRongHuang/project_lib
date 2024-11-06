@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_margin="@dimen/dp_3"
+    android:layout_height="wrap_content">
+
+    <com.hjq.shape.view.ShapeTextView
+        android:id="@+id/textViewItem"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="@dimen/dp_10"
+        android:paddingVertical="@dimen/dp_3"
+        android:text="Item"
+        android:textColor="@color/color_333333"
+        android:textSize="@dimen/sp_13"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:shape_radius="@dimen/dp_10"
+        app:shape_solidColor="@color/color_FF8500" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
