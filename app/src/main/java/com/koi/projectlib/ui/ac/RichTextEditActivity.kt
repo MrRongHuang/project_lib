@@ -2,28 +2,54 @@ package com.koi.projectlib.ui.ac
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.net.Uri
+import android.provider.MediaStore
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
 import android.view.WindowManager
 import android.webkit.*
+import androidx.core.content.FileProvider
 import androidx.recyclerview.widget.RecyclerView
+import com.blankj.utilcode.util.FileUtils
+import com.blankj.utilcode.util.PathUtils
 import com.drake.brv.utils.bindingAdapter
 import com.drake.brv.utils.linear
 import com.drake.brv.utils.setup
 import com.drake.engine.base.EngineActivity
 import com.drake.net.utils.TipUtils.toast
 import com.drake.statusbar.immersive
+import com.drake.tooltip.dialog.BubbleDialog
 import com.google.gson.Gson
+import com.hjq.permissions.Permission
+import com.koi.projectlib.Constant
 import com.koi.projectlib.R
 import com.koi.projectlib.databinding.ActivityRichTextEditBinding
 import com.koi.projectlib.dialog.ThinkTankEdtLinkPop
 import com.koi.projectlib.model.EditLinkModel
 import com.koi.projectlib.model.RichTextTypeModel
 import com.koi.projectlib.model.UndoRedoModel
+import com.koi.projectlib.permission.AppPermissionsUtils
+import com.koi.projectlib.permission.GlideEngine
+import com.koi.projectlib.permission.MyRxFFmpegSubscriber
+import com.koi.projectlib.util.AppFileUtils
+import com.koi.projectlib.util.Utils
+import com.luck.picture.lib.basic.PictureSelector
+import com.luck.picture.lib.config.SelectMimeType
+import com.luck.picture.lib.entity.LocalMedia
+import com.luck.picture.lib.interfaces.OnResultCallbackListener
+import com.luck.picture.lib.style.PictureSelectorStyle
+import com.luck.picture.lib.utils.MediaUtils
+import com.luck.picture.lib.utils.SandboxTransformUtils
 import com.lxj.xpopup.XPopup
+import io.microshow.rxffmpeg.RxFFmpegInvoke
+import java.io.File
+import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Suppress("DEPRECATION")
 class RichTextEditActivity :
@@ -40,6 +66,20 @@ class RichTextEditActivity :
 
     // 编辑链接按钮是否高亮
     private var edtLinkState = false
+
+    //拍照功能需要
+    private var imageUri: Uri? = null
+    private var photoFile: File? = null
+    private var videoUri: Uri? = null
+    private var videoFile: File? = null
+
+    //视频压缩
+    private var myRxFFmpegSubscriber: MyRxFFmpegSubscriber? = null
+    private val compressDialog by lazy {
+        BubbleDialog(this, "视频压缩中").apply {
+            setCancelable(false)
+        }
+    }
 
     override fun initData() {
 
@@ -66,7 +106,6 @@ class RichTextEditActivity :
         binding.edtThinkTank.setOnFocusChangeListener { v, hasFocus ->
             // 禁用 WebView 的 JavaScript 交互
             if (hasFocus) {
-                binding.webContent.settings.javaScriptEnabled = false
                 window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
             }
 
@@ -183,9 +222,117 @@ class RichTextEditActivity :
                         }
                         "图片" -> {
                             toast("图片")
+                            binding.webContent.evaluateJavascript("javascript:getImageCount();") {
+                                if (it.toInt() >=  Constant.PHOTO_SELECT_MAX_NUMBER_THINK_TANK) {
+                                    com.drake.tooltip.toast("暂不支持上传超过10张图片")
+                                } else {
+                                    XPopup.Builder(this@RichTextEditActivity)
+                                        .asBottomList(
+                                            "请选择上传类型",
+                                            arrayOf("拍照片", "从手机相册选择"), null
+                                        ) { _, text1 ->
+                                            when (text1) {
+                                                "拍照片" -> {
+                                                    AppPermissionsUtils.checkPermissions(
+                                                        this@RichTextEditActivity,
+                                                        Constant.READ_MEDIA_IMAGES_AND_CAMERA_STR,
+                                                        Constant.READ_MEDIA_IMAGES_AND_CAMERA_STR_TIPS,
+                                                        Constant.READ_MEDIA_IMAGES_AND_CAMERA_DENIED_STR,
+                                                        object :
+                                                            AppPermissionsUtils.PermissionsCallback {
+                                                            override fun next() {
+                                                                selectCamera(Constant.ALBUM_TYPE_PHOTO)
+                                                            }
+
+                                                            override fun cancel() {
+
+                                                            }
+                                                        },
+                                                        Permission.READ_MEDIA_IMAGES,
+                                                        Permission.CAMERA
+                                                    )
+                                                }
+
+                                                "从手机相册选择" -> {
+                                                    AppPermissionsUtils.checkPermissions(
+                                                        this@RichTextEditActivity,
+                                                        Constant.READ_MEDIA_IMAGES_STR,
+                                                        Constant.READ_MEDIA_IMAGES_STR_TIPS,
+                                                        Constant.READ_MEDIA_IMAGES_DENIED_STR,
+                                                        object :
+                                                            AppPermissionsUtils.PermissionsCallback {
+                                                            override fun next() {
+                                                                selectPhoto()
+                                                            }
+
+                                                            override fun cancel() {
+
+                                                            }
+                                                        },
+                                                        Permission.READ_MEDIA_IMAGES
+                                                    )
+                                                }
+                                            }
+                                        }.show()
+                                }
+                            }
                         }
                         "视频" -> {
                             toast("视频")
+                            binding.webContent.evaluateJavascript("javascript:getVideoCount();") {
+                                if (it.toInt() >= Constant.VIDEO_SELECT_MAX_NUMBER_THINK_TANK) {
+                                    com.drake.tooltip.toast("暂不支持上传超过3条视频")
+                                } else {
+                                    XPopup.Builder(this@RichTextEditActivity)
+                                        .asBottomList(
+                                            "请选择上传类型",
+                                            arrayOf("拍视频", "从手机相册选择"), null
+                                        ) { _, text1 ->
+                                            when (text1) {
+                                                "拍视频" -> {
+                                                    AppPermissionsUtils.checkPermissions(
+                                                        this@RichTextEditActivity,
+                                                        Constant.READ_MEDIA_IMAGES_AND_CAMERA_STR,
+                                                        Constant.READ_MEDIA_IMAGES_AND_CAMERA_STR_TIPS,
+                                                        Constant.READ_MEDIA_IMAGES_AND_CAMERA_DENIED_STR,
+                                                        object :
+                                                            AppPermissionsUtils.PermissionsCallback {
+                                                            override fun next() {
+                                                                selectCamera(Constant.ALBUM_TYPE_VIDEO)
+                                                            }
+
+                                                            override fun cancel() {
+
+                                                            }
+                                                        },
+                                                        Permission.READ_MEDIA_IMAGES,
+                                                        Permission.CAMERA
+                                                    )
+                                                }
+
+                                                "从手机相册选择" -> {
+                                                    AppPermissionsUtils.checkPermissions(
+                                                        this@RichTextEditActivity,
+                                                        Constant.READ_MEDIA_IMAGES_STR,
+                                                        Constant.READ_MEDIA_IMAGES_STR_TIPS,
+                                                        Constant.READ_MEDIA_IMAGES_DENIED_STR,
+                                                        object :
+                                                            AppPermissionsUtils.PermissionsCallback {
+                                                            override fun next() {
+                                                                selectVideo()
+                                                            }
+
+                                                            override fun cancel() {
+
+                                                            }
+                                                        },
+                                                        Permission.READ_MEDIA_IMAGES
+                                                    )
+                                                }
+                                            }
+                                        }.show()
+                                }
+                            }
                         }
                     }
                 }
@@ -201,9 +348,15 @@ class RichTextEditActivity :
                 ThinkTankEdtLinkPop(requireActivity(), selDescribe, selLink,
                     object : ThinkTankEdtLinkPop.OnThinkTankEdtLinkListerner {
                         override fun onConfirm(describe: String, link: String) {
-                            binding.webContent.evaluateJavascript(
-                                "javascript:focus();insertLink('$link','$describe');", null
-                            )
+                            if (edtLinkState) {
+                                binding.webContent.evaluateJavascript(
+                                    "javascript:focus();editLink('$link','$describe');", null
+                                )
+                            } else {
+                                binding.webContent.evaluateJavascript(
+                                    "javascript:focus();insertLink('$link','$describe');", null
+                                )
+                            }
                         }
                     })
             ).show()
@@ -220,7 +373,7 @@ class RichTextEditActivity :
         wbContent.webViewClient = webViewClient
         wbContent.webChromeClient = webChromeClient
         wbContent.addJavascriptInterface(WebAppInterface(this), "editor")
-        wbContent.loadUrl("file:///android_asset/editor.html")
+        wbContent.loadUrl("file:///android_asset/tinymce/editor.html")
     }
 
     @SuppressLint("SetTextI18n")
@@ -424,10 +577,284 @@ class RichTextEditActivity :
 
         override fun onPageFinished(view: WebView?, url: String?) {
             super.onPageFinished(view, url)
+            binding.webContent.evaluateJavascript(
+                "javascript:init('请输入问题描述',${2000},null,${
+                    Utils.getScreenHeightPercentageInPx(
+                        this@RichTextEditActivity,
+                        0.6
+                    )
+                });",
+                null
+            )
+
+            binding.webContent.postDelayed({
+                initWebData("")
+                checkCanSend()
+            }, 500)
+        }
+    }
+
+    /**
+     * 初始化web编辑器数据内容
+     * @param content 现有编辑器内容
+     * */
+    private fun initWebData(
+        content: String
+    ) {
+        if (content.isNotEmpty()) {
+            val showContent = content.replace("\n", "\\n").replace("'","\\'")
+            binding.webContent.evaluateJavascript(
+                "javascript:setHTMLContent('$showContent');",
+                null
+            )
         }
     }
 
     private val webChromeClient = object : WebChromeClient() {
+
+    }
+
+
+    @Suppress("DEPRECATION")
+    private fun selectCamera(cameraType: Int) {
+        if (cameraType == Constant.ALBUM_TYPE_PHOTO) {
+            // 创建拍照Intent
+            val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+            if (takePictureIntent.resolveActivity(packageManager) != null) {
+                try {
+                    photoFile = AppFileUtils.createImageFile(this@RichTextEditActivity)
+                } catch (ex: IOException) {
+                    // Error occurred while creating the File
+                }
+                if (photoFile != null) {
+                    imageUri = FileProvider.getUriForFile(
+                        this@RichTextEditActivity,
+                        "com.koi.projectlib.fileprovider",
+                        photoFile!!
+                    )
+                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri)
+                    startActivityForResult(
+                        takePictureIntent,
+                        Constant.REQUEST_IMAGE_CAPTURE
+                    )
+                }
+            }
+        } else {
+            // 创建拍视频Intent
+            val takePictureIntent = Intent(MediaStore.ACTION_VIDEO_CAPTURE)
+            if (takePictureIntent.resolveActivity(packageManager) != null) {
+                try {
+                    videoFile = AppFileUtils.createMoviesFile(this@RichTextEditActivity)
+                } catch (ex: IOException) {
+                    // Error occurred while creating the File
+                }
+                if (videoFile != null) {
+                    videoUri = FileProvider.getUriForFile(
+                        this@RichTextEditActivity,
+                        "com.koi.projectlib.fileprovider",
+                        videoFile!!
+                    )
+                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, videoUri)
+                    startActivityForResult(
+                        takePictureIntent,
+                        Constant.REQUEST_VIDEO_CAPTURE
+                    )
+                }
+            }
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == Constant.REQUEST_IMAGE_CAPTURE) {
+            // 获取拍摄的照片
+            if (resultCode == RESULT_OK) {
+                // 压缩图片并上传到服务器
+                val compressedImageFile = photoFile?.let { AppFileUtils.compressImage(it) }
+                if (compressedImageFile != null) {
+                    val fileList = mutableListOf<File>()
+                    fileList.add(File(compressedImageFile.absolutePath))
+                    //执行上传操作
+//                    upLoadImgOrVideoList(fileList, 1)
+                    toast("执行上传完成并插入图片的操作")
+//                    binding.webContent.evaluateJavascript(
+//                        "javascript:insertImages($upImgListStr);",
+//                        null
+//                    )
+                }
+            } else {
+                FileUtils.delete(photoFile)
+            }
+        } else if (requestCode == Constant.REQUEST_VIDEO_CAPTURE) {
+            // 获取拍摄的视频
+            if (resultCode == RESULT_OK) {
+                if (videoFile != null) {
+                    if ((AppFileUtils.getFileSize(videoFile!!) / (1024 * 1024)).toInt() > 200) {
+                        FileUtils.delete(videoFile)
+                        com.drake.tooltip.toast("视频文件不得大于200M")
+                        return
+                    }
+                    Log.i(
+                        "onResult",
+                        "拍摄完 文件大小: " + AppFileUtils.getFileSize(videoFile!!) / (1024 * 1024)
+                    )
+                    val fileList = mutableListOf<File>()
+                    val destPath = "${PathUtils.getExternalDcimPath()}/${videoFile!!.name}"
+                    val vImgPath = AppFileUtils.extractAndSaveVideoFrame(0,videoFile!!.absolutePath)
+                    val commands = Utils.getBoxScale(videoFile!!.absolutePath, destPath)
+                    myRxFFmpegSubscriber = MyRxFFmpegSubscriber(
+                        this,
+                        compressDialog,
+                        object : MyRxFFmpegSubscriber.FFmpegListener {
+                            override fun onError() {
+                                FileUtils.delete(videoFile)
+                                com.drake.tooltip.toast("压缩视频失败,请重新选择")
+                            }
+
+                            override fun onFinish() {
+//                                fileList.add(File(videoFile!!.absolutePath))
+                                fileList.add(File(vImgPath))
+                                fileList.add(File(destPath))
+                                //执行上传操作
+//                                upLoadImgOrVideoList(fileList, 2)
+                                toast("执行上传完成并插入视频的操作")
+//                                binding.webContent.evaluateJavascript(
+//                                    "javascript:insertVideo('${data.paths[1]}','${data.paths[0]}');",
+//                                    null
+//                                )
+                                FileUtils.delete(videoFile)
+                            }
+                        })
+                    //开始执行FFmpeg命令
+                    RxFFmpegInvoke.getInstance()
+                        .runCommandRxJava(commands)
+                        .subscribe(myRxFFmpegSubscriber)
+                }
+            } else {
+                FileUtils.delete(videoFile)
+            }
+        }
+    }
+
+    private fun selectPhoto() {
+        binding.webContent.evaluateJavascript("javascript:getImageCount();") { it ->
+            PictureSelector.create(this)
+                .openGallery(SelectMimeType.ofImage())
+                .setSelectMaxFileSize(1024 * 10)
+                .setMaxSelectNum(Constant.PHOTO_SELECT_MAX_NUMBER_THINK_TANK - it.toInt())
+                .isWebp(true)
+                .isGif(true)
+                .isBmp(false)
+                .isDisplayCamera(false)
+                .setImageEngine(GlideEngine.createGlideEngine())
+                .setSelectorUIStyle(PictureSelectorStyle())
+                .isWithSelectVideoImage(false)
+                .setMaxVideoSelectNum(1)
+                .setSandboxFileEngine { context, srcPath, mineType, call ->
+                    call?.onCallback(
+                        srcPath,
+                        SandboxTransformUtils.copyPathToSandbox(context, srcPath, mineType)
+                    )
+                }
+                .forResult(object : OnResultCallbackListener<LocalMedia> {
+                    override fun onResult(result: java.util.ArrayList<LocalMedia>) {
+                        for (media in result) {
+                            if (media.width == 0 || media.height == 0) {
+                                val imageExtraInfo =
+                                    MediaUtils.getImageSize(this@RichTextEditActivity, media.path)
+                                media.width = imageExtraInfo.width
+                                media.height = imageExtraInfo.height
+                            }
+                        }
+                        val fileList = mutableListOf<File>()
+                        result.map {
+                            if (it.path.isNotEmpty() && it.path.startsWith("http") ||
+                                it.path.startsWith("https")
+                            ) {
+                                return@map
+                            }
+                            fileList.add(File(it.availablePath))
+                        }
+
+                        if (fileList.isNotEmpty()) {
+                            toast("执行上传完成并插入图片的操作")
+
+//                            binding.webContent.evaluateJavascript(
+//                                "javascript:insertImages($upImgListStr);",
+//                                null
+//                            )
+                        }
+                    }
+
+                    override fun onCancel() {
+                    }
+                })
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun selectVideo() {
+        binding.webContent.evaluateJavascript("javascript:getVideoCount();") { it ->
+            PictureSelector.create(this)
+                .openGallery(SelectMimeType.ofVideo())
+                .setSelectMaxFileSize(1024 * 200)
+                .setMaxSelectNum(1)
+                .setImageEngine(GlideEngine.createGlideEngine())
+                .setSelectorUIStyle(PictureSelectorStyle())
+
+                .forResult(object : OnResultCallbackListener<LocalMedia> {
+                    @SuppressLint("SimpleDateFormat")
+                    override fun onResult(result: java.util.ArrayList<LocalMedia>?) {
+                        result ?: return
+                        for (media in result) {
+                            if (media.width == 0 || media.height == 0) {
+                                val videoExtraInfo =
+                                    MediaUtils.getVideoSize(this@RichTextEditActivity, media.path)
+                                media.width = videoExtraInfo.width
+                                media.height = videoExtraInfo.height
+                            }
+                            val fileList = mutableListOf<File>()
+                            val destPath = "${PathUtils.getExternalDcimPath()}/${
+                                SimpleDateFormat("yyyyMMdd_HHmmss").format(
+                                    Date()
+                                )
+                            }_${media.fileName}"
+                            val commands = Utils.getBoxScale(media.realPath, destPath)
+                            val vImgPath = AppFileUtils.extractAndSaveVideoFrame(0,media.realPath)
+                            myRxFFmpegSubscriber = MyRxFFmpegSubscriber(
+                                this@RichTextEditActivity,
+                                compressDialog,
+                                object : MyRxFFmpegSubscriber.FFmpegListener {
+                                    override fun onError() {
+                                        com.drake.tooltip.toast("压缩视频失败,请重新选择")
+                                    }
+
+                                    override fun onFinish() {
+                                        fileList.add(File(vImgPath))
+                                        fileList.add(File(destPath))
+                                        toast("执行上传完成并插入视频的操作")
+//                                        binding.webContent.evaluateJavascript(
+//                                            "javascript:insertVideo('${data.paths[1]}','${data.paths[0]}');",
+//                                            null
+//                                        )
+                                    }
+
+                                })
+                            //开始执行FFmpeg命令
+                            RxFFmpegInvoke.getInstance()
+                                .runCommandRxJava(commands)
+                                .subscribe(myRxFFmpegSubscriber)
+
+                        }
+                    }
+
+                    override fun onCancel() {
+
+                    }
+
+                })
+        }
 
     }
 }

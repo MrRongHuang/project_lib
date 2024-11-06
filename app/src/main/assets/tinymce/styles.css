@@ -1,0 +1,24 @@
+/* 基本样式 */
+.mce-container {
+    width: 100% !important; /* 让编辑器容器宽度适应屏幕宽度 */
+    max-width: 100% !important; /* 防止超出屏幕 */
+}
+
+.mce-editor {
+    height: auto !important; /* 高度自适应 */
+}
+
+.mce-content-body[data-mce-placeholder]:not(.mce-visualblocks)::before {
+    color: #999;
+}
+
+img {
+    width: 100% !important;
+    height: auto;
+}
+
+video {
+    width: 100% !important;
+    height: auto;
+}
+

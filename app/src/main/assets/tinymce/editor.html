@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+</head>
+<body>
+  <textarea id="editor"></textarea>
+  <script src="tinymce.min.js"></script>
+  <script>
+      // 全局变量来保存光标的书签（bookmark）
+      let savedBookmark = null;
+      let isAndroid = getMobileOS() === 'Android';
+      
+      let placeholderNode = null;
+      let placeholderText = null;
+      let minLength = null;
+      let maxLength = 1000;
+      let editorHeight = 300;
+      let htmlContent = null;
+      
+      function getMobileOS() {
+          const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+          // 判断是否是 iOS 设备
+          if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
+              return 'iOS';
+          }
+          // 判断是否是 Android 设备
+          if (/android/i.test(userAgent)) {
+              return 'Android';
+          }
+          return 'unknown';
+      }
+      
+      function initializeTinyMCE() {
+          tinymce.init({
+              selector: '#editor',
+              mobile: {
+                  plugins: 'lists link image media',
+                  menubar: false,
+                  toolbar: false,
+                  statusbar: false,
+                  contextmenu: false,
+                  height: editorHeight,
+                  valid_elements: "div,p,h1,strong,b,em,i,u,span[style],ol,ul,li,a[href|target],img[src|alt],video[scr|type]",
+                  extended_valid_elements: 'video[controls|poster|playsinline|webkit-playsinline|muted|autoplay|loop|preload],source[src|type]',
+                  setup: function(editor) {
+                      editor.on('init', function() {
+                          initPlaceholder(placeholderText);
+                          setHTMLContentAfterInitIfNeeded();
+                          checkUndoRedoState();
+                          checkValidHTML();
+                          checkValidText();
+                      });
+                      editor.on('change', function() {
+                          if (isAndroid && window.editor) {
+                              window.editor.contentChanged(editor.getContent());
+                          } else {
+                              window.webkit.messageHandlers.contentChanged.postMessage(editor.getContent());
+                          }
+                          togglePlaceholder();
+                          checkUndoRedoState();
+                          checkValidHTML();
+                          checkValidText();
+                      });
+                      editor.on('input', function() {
+                          if (isAndroid && window.editor) {
+                              window.editor.contentChanged(editor.getContent());
+                          } else {
+                              window.webkit.messageHandlers.contentChanged.postMessage(editor.getContent());
+                          }
+                          togglePlaceholder();
+                          checkUndoRedoState();
+                          checkValidHTML();
+                          checkValidText();
+                      });
+                      editor.on('NodeChange', function() {
+                          togglePlaceholder();
+                          checkH1State();
+                          checkBoldState();
+                          checkItalicState();
+                          checkUnderlineState();
+                          checkOrderedListState();
+                          checkUnorderedListState();
+                          checkLinkState();
+                      });
+                      editor.on('BeforePaste', function(event) {
+                          // 使用 DOMParser 解析粘贴内容并进行过滤
+                          var content = event.content;
+                          var parser = new DOMParser();
+                          var doc = parser.parseFromString(content, 'text/html');
+                          // 过滤不允许的元素
+                          var allowedTags = ['DIV', 'P', 'H1', 'STRONG', 'B', 'EM', 'I', 'U', 'SPAN', 'OL', 'UL', 'LI', 'A', 'IMG', 'VIDEO'];
+                          var elements = doc.body.querySelectorAll('*');
+                          elements.forEach(function (element) {
+                              if (!allowedTags.includes(element.tagName)) {
+                                  element.remove(); // 移除不在允许列表中的元素
+                              } else {
+                                // 处理允许的元素，保留特定属性
+                                if (element.tagName === 'A') {
+                                  // 只保留 href 和 target 属性
+                                  [...element.attributes].forEach(attr => {
+                                    if (!['href', 'target'].includes(attr.name)) {
+                                        element.removeAttribute(attr.name);
+                                    }
+                                  });
+                                } else if (element.tagName === 'IMG') {
+                                  // 只保留 src 和 alt 属性
+                                  [...element.attributes].forEach(attr => {
+                                    if (!['src', 'alt'].includes(attr.name)) {
+                                        element.removeAttribute(attr.name);
+                                    }
+                                  });
+                                } else if (element.tagName === 'VIDEO') {
+                                  // 只保留 src 和 type 属性
+                                  [...element.attributes].forEach(attr => {
+                                    if (!['src', 'type'].includes(attr.name)) {
+                                        element.removeAttribute(attr.name);
+                                    }
+                                  });
+                                } else if (element.tagName === 'SPAN') {
+                                  // 只保留 style 属性
+                                  [...element.attributes].forEach(attr => {
+                                    if (attr.name !== 'style') {
+                                        element.removeAttribute(attr.name);
+                                    }
+                                  });
+                                } else {
+                                  // 移除所有其他元素的属性
+                                  [...element.attributes].forEach(attr => {
+                                      element.removeAttribute(attr.name);
+                                  });
+                                }
+                              }
+                            });
+                            // 返回处理后的内容
+                            event.content = doc.body.innerHTML;
+                      });
+                      editor.on('Undo Redo', function () {
+                          editor.fire('change');
+                      });
+                      editor.on('click', function(event) {
+                          const clientX = event.clientX;
+                          const clientY = event.clientY;
+                          const doc = editor.getDoc();
+                          const range = doc.caretRangeFromPoint(clientX, clientY);
+                          if (range) {
+                              editor.selection.setRng(range);
+                              editor.selection.scrollIntoView();
+                          }
+                      });
+                  },
+                  content_css: 'styles.css'
+              }
+          });
+      }
+      
+      function init(placeholder, max_length, min_length, height) {
+          placeholderText = placeholder;
+          maxLength = max_length;
+          minLength = min_length;
+          editorHeight = height;
+          initializeTinyMCE();
+      }
+      
+      function initPlaceholder(placeholderText) {
+          placeholderNode = document.createElement('div');
+          placeholderNode.innerText = placeholderText;
+          placeholderNode.style.position = 'absolute';
+          placeholderNode.style.fontSize = '14px';
+          placeholderNode.style.top = '13px';
+          placeholderNode.style.left = '9px';
+          placeholderNode.style.color = '#999';
+          placeholderNode.style.pointerEvents = 'none';
+          var contentAreaContainer = tinymce.activeEditor.getContentAreaContainer();
+          contentAreaContainer.parentNode.style.position = 'relative';
+          contentAreaContainer.parentNode.appendChild(placeholderNode);
+      }
+      
+      function togglePlaceholder() {
+          const content = tinymce.activeEditor.getContent().trim();
+          if (content === '' || content === '<h1></h1>') {
+              placeholderNode.style.display = 'block';
+          } else {
+              placeholderNode.style.display = 'none';
+          }
+          if (content === '<h1></h1>') {
+              placeholderNode.style.fontSize = '2em';
+              placeholderNode.style.top = '16px';
+          } else {
+              placeholderNode.style.fontSize = '1em';
+              placeholderNode.style.top = '13px';
+          }
+      }
+      
+      // 调整编辑器高度
+      function adjustEditorHeight() {
+          const height = document.documentElement.clientHeight;
+          tinymce.activeEditor.getContainer().style.height = height + 'px';
+          const contentAreaContainer = tinymce.activeEditor.getContentAreaContainer();
+          contentAreaContainer.style.height = height + 'px';
+          contentAreaContainer.style.overflow = 'auto';
+          setTimeout(function() {
+              tinymce.activeEditor.selection.scrollIntoView();
+          }, 100);
+      }
+      
+      // 设置文本最大长度
+      function setMaxLength(length) {
+          maxLength = length;
+      }
+      
+      // 设置HTML内容
+      function setHTMLContent(content) {
+          htmlContent = content;
+          
+          tinymce.activeEditor.setContent(content);
+          // 手动触发 change 事件
+          tinymce.activeEditor.fire('change');
+      }
+      
+      function setHTMLContentAfterInitIfNeeded() {
+          if (htmlContent) {
+              setHTMLContent(htmlContent);
+          }
+      }
+      
+      let lastIsValid = null;
+      // 检查有效的HTML内容
+      function checkValidHTML() {
+          // 获取编辑器的 HTML 内容
+          const editorContent = tinymce.activeEditor.getContent();
+
+          // 创建一个 DOM 元素来解析 HTML
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = editorContent;
+
+          // 选择所有段落元素
+          const paragraphs = tempDiv.querySelectorAll('p');
+
+          // 遍历段落并移除空段落或全为空格的段落
+          paragraphs.forEach(p => {
+              // 检查段落是否为空或只包含空格
+              if (p.childElementCount === 0 && !p.textContent.trim() || p.innerHTML.trim() === '<br>') {
+                  // 移除空段落或仅包含空格的段落
+                  p.remove();
+              }
+          });
+
+          // 返回过滤后的 HTML 内容
+          let html = tempDiv.innerHTML;
+          
+          let htmlLength = html.trim().length;
+          let textLength = tinymce.activeEditor.getContent({ format: 'text' }).replace(/\n/g, '').length;
+          let isValid = false;
+          if (minLength) {
+              isValid = htmlLength > 0 && textLength <= maxLength && textLength >= minLength;
+          } else {
+              isValid = htmlLength > 0 && textLength <= maxLength;
+          }
+          
+          if (isValid !== lastIsValid) {
+              if (isAndroid && window.editor) {
+                  window.editor.validStateChanged(isValid);
+              } else {
+                  window.webkit.messageHandlers.validStateChanged.postMessage(isValid);
+              }
+          }
+          
+          lastIsValid = isValid;
+      }
+      
+      let lastTextLength = null;
+      // 检查有效的文本
+      function checkValidText() {
+          let textLength = tinymce.activeEditor.getContent({ format: 'text' }).replace(/\n/g, '').length;
+          if (textLength !== lastTextLength) {
+              if (isAndroid && window.editor) {
+                  window.editor.textLengthChanged(textLength);
+              } else {
+                  window.webkit.messageHandlers.textLengthChanged.postMessage(textLength);
+              }
+          }
+          lastTextLength = textLength;
+      }
+      
+      // 获取简要内容(不包含换行及空格)
+      function getBriefContent() {
+          const text = tinymce.activeEditor.getContent({ format: 'text' }).replace(/\n/g, '').replace(/\s/g, '');
+          return text;
+      }
+      
+      let lastCanUndo = null;
+      let lastCanRedo = null;
+      // 检查撤销重做状态
+      function checkUndoRedoState() {
+          const canUndo = tinymce.activeEditor.undoManager.hasUndo();
+          const canRedo = tinymce.activeEditor.undoManager.hasRedo();
+          const data = {
+              canUndo: canUndo,
+              canRedo: canRedo
+          };
+          if (canUndo !== lastCanUndo || canRedo !== lastCanRedo) {
+              if (isAndroid && window.editor) {
+                  window.editor.undoRedoState(JSON.stringify(data));
+              } else {
+                  window.webkit.messageHandlers.undoRedoState.postMessage(data);
+              }
+          }
+          lastCanUndo = canUndo;
+          lastCanRedo = canRedo;
+      }
+      
+      let lastIsH1Active = null;
+      // 检查H1状态
+      function checkH1State() {
+          let isH1Active = tinymce.activeEditor.formatter.match('h1');
+          if (isH1Active !== lastIsH1Active) {
+              if (isAndroid && window.editor) {
+                  window.editor.h1State(JSON.stringify(isH1Active));
+              } else {
+                  window.webkit.messageHandlers.h1State.postMessage(isH1Active);
+              }
+          }
+          lastIsH1Active = isH1Active;
+      }
+      
+      let lastIsBoldActive = null;
+      // 检查加粗状态
+      function checkBoldState() {
+          const isBoldActive = tinymce.activeEditor.queryCommandState('Bold');
+          if (isBoldActive !== lastIsBoldActive) {
+              if (isAndroid && window.editor) {
+                  window.editor.boldState(isBoldActive);
+              } else {
+                  window.webkit.messageHandlers.boldState.postMessage(isBoldActive);
+              }
+          }
+          lastIsBoldActive = isBoldActive;
+      }
+      
+      let lastIsItalicActive = null;
+      // 检查斜体状态
+      function checkItalicState() {
+          const isItalicActive = tinymce.activeEditor.queryCommandState('Italic');
+          if (isItalicActive !== lastIsItalicActive) {
+              if (isAndroid && window.editor) {
+                  window.editor.italicState(JSON.stringify(isItalicActive));
+              } else {
+                  window.webkit.messageHandlers.italicState.postMessage(isItalicActive);
+              }
+          }
+          lastIsItalicActive = isItalicActive;
+      }
+      
+      let lastIsUnderlineActive = null;
+      // 检查下划线状态
+      function checkUnderlineState() {
+          const isUnderlineActive = tinymce.activeEditor.queryCommandState('Underline');
+          if (isUnderlineActive !== lastIsUnderlineActive) {
+              if (isAndroid && window.editor) {
+                  window.editor.underlineState(JSON.stringify(isUnderlineActive));
+              } else {
+                  window.webkit.messageHandlers.underlineState.postMessage(isUnderlineActive);
+              }
+          }
+          lastIsUnderlineActive = isUnderlineActive;
+      }
+      
+      let lastIsOrderedListActive = null;
+      // 检查有序列表状态
+      function checkOrderedListState() {
+          const isOrderedListActive = tinymce.activeEditor.queryCommandState('InsertOrderedList');
+          if (isOrderedListActive !== lastIsOrderedListActive) {
+              if (isAndroid && window.editor) {
+                  window.editor.orderedListState(JSON.stringify(isOrderedListActive));
+              } else {
+                  window.webkit.messageHandlers.orderedListState.postMessage(isOrderedListActive);
+              }
+          }
+          lastIsOrderedListActive = isOrderedListActive;
+      }
+      
+      let lastIsUnorderedListActive = null;
+      // 检查无序列表状态
+      function checkUnorderedListState() {
+          const isUnorderedListActive = tinymce.activeEditor.queryCommandState('InsertUnorderedList');
+          if (isUnorderedListActive !== lastIsUnorderedListActive) {
+              if (isAndroid && window.editor) {
+                  window.editor.unorderedListState(JSON.stringify(isUnorderedListActive));
+              } else {
+                  window.webkit.messageHandlers.unorderedListState.postMessage(isUnorderedListActive);
+              }
+          }
+          lastIsUnorderedListActive = isUnorderedListActive;
+      }
+      
+      let lastIsLinkActive = null;
+      // 检查链接状态
+      function checkLinkState() {
+          const node = tinymce.activeEditor.selection.getNode();
+          //const link = node.closest('a');
+          const isLinkActive = node.nodeName === 'A';
+          if (isLinkActive !== lastIsLinkActive) {
+              if (isAndroid && window.editor) {
+                  window.editor.linkState(JSON.stringify(isLinkActive));
+              } else {
+                  window.webkit.messageHandlers.linkState.postMessage(isLinkActive);
+              }
+          }
+          lastIsLinkActive = isLinkActive;
+      }
+      
+      // 获取已有图片数量
+      function getImageCount() {
+          const editorBody = tinymce.activeEditor.getBody();
+          const imgElements = editorBody.querySelectorAll('img');
+          const imageCount = imgElements.length;
+          return imageCount;
+      }
+      
+      // 获取已有视频数量
+      function getVideoCount() {
+          const editorBody = tinymce.activeEditor.getBody();
+          const videoElements = editorBody.querySelectorAll('video');
+          const videoCount = videoElements.length;
+          return videoCount;
+      }
+      
+      // 撤销
+      function undo() {
+          tinymce.activeEditor.execCommand('Undo');
+          checkUndoRedoState();
+      }
+
+      // 重做
+      function redo() {
+          tinymce.activeEditor.execCommand('Redo');
+          checkUndoRedoState();
+      }
+      
+      // 标题段落
+      function toggleHeadingParagraph() {
+          if (tinymce.activeEditor.formatter.match('h1')) {
+              tinymce.activeEditor.formatter.apply('p');
+          } else {
+              tinymce.activeEditor.formatter.toggle('h1');
+          }
+          tinymce.activeEditor.selection.scrollIntoView();
+          checkH1State();
+          // 手动触发 change 事件
+          tinymce.activeEditor.fire('change');
+      }
+      
+      // 加粗
+      function toggleBold() {
+          tinymce.activeEditor.execCommand('Bold');
+          checkBoldState();
+      }
+      
+      // 斜体
+      function toggleItalic() {
+          tinymce.activeEditor.execCommand('Italic');
+      }
+      
+      // 下划线
+      function toggleUnderline() {
+          tinymce.activeEditor.execCommand('Underline');
+      }
+      
+      // 有序列表
+      function toggleOrderedList() {
+          tinymce.activeEditor.execCommand('InsertOrderedList');
+          checkOrderedListState();
+      }
+      
+      // 无序列表
+      function toggleUnorderedList() {
+          tinymce.activeEditor.execCommand('InsertUnorderedList');
+          checkUnorderedListState();
+      }
+      
+      // 聚焦
+      function focus() {
+          tinymce.activeEditor.focus();
+          if (savedBookmark) {
+              tinymce.activeEditor.selection.moveToBookmark(savedBookmark);
+              savedBookmark = null;
+          }
+      }
+      
+      // 失焦
+      function blur() {
+          tinymce.activeEditor.blur();
+          savedBookmark = tinymce.activeEditor.selection.getBookmark(2, true);
+      }
+      
+      // 获取选中的文本
+      function getSelectedText() {
+          let selectedText = tinymce.activeEditor.selection.getContent({ format: 'text' });
+          return selectedText;
+      }
+      
+      // 插入链接
+      function insertLink(linkURL, linkText) {
+          const content = `<a href="${linkURL}" target="_blank">${linkText}</a>`;
+          tinymce.activeEditor.insertContent(content);
+          checkLinkState();
+      }
+      
+      // 获取光标所在位置的链接信息
+      function getLinkInfo() {
+          const node = tinymce.activeEditor.selection.getNode();
+          if (node.nodeName === 'A') {
+              const linkURL = node.getAttribute('href');
+              const text = node.textContent;
+              const data = {
+                  link: linkURL,
+                  linkText: text
+              };
+              if (isAndroid && window.editor) {
+                  window.editor.editLink(JSON.stringify(data));
+              } else {
+                  window.webkit.messageHandlers.editLink.postMessage(data);
+              }
+          }
+      }
+      
+      // 编辑链接
+      function editLink(linkURL, linkText) {
+          const selectedNode = tinymce.activeEditor.selection.getNode();
+          if (selectedNode.nodeName === 'A') {
+              tinymce.activeEditor.dom.setAttrib(selectedNode, 'href', linkURL);
+              tinymce.activeEditor.dom.setHTML(selectedNode, linkText);
+              tinymce.activeEditor.fire('change');
+          }
+      }
+      
+      // 插入图片(支持多张)
+      function insertImages(imageURLList) {
+          const content = imageURLList.map(imageURL => `<img src="${imageURL}" alt="[图片]" />`).join('');
+          tinymce.activeEditor.insertContent(content);
+      }
+      
+      // 插入视频(支持单个)
+      function insertVideo(videoURL, posterURL) {
+          const content = `<video controls preload="metadata" poster="${posterURL}" playsinline webkit-playsinline><source src="${videoURL}" type="video/mp4"></video>`;
+          tinymce.activeEditor.insertContent(content);
+      }
+    
+      // 插入视频(支持多个)
+      function insertVideos(videoItems) {
+          for (let i = 0; i < videoItems.length; i++) {
+              const videoItem = videoItems[i];
+              const videoURL = videoItem.videoURL;
+              const posterURL = videoItem.posterURL;
+              const content = `<video controls preload="metadata" poster=${posterURL} playsinline webkit-playsinline><source src="${videoURL}" type="video/mp4"></video>`;
+              tinymce.activeEditor.insertContent(content);
+          }
+      }
+      
+      window.addEventListener('resize', function() {
+          adjustEditorHeight();
+      });
+      
+  </script>
+</body>
+</html>
