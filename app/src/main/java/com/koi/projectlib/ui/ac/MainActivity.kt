@@ -44,6 +44,10 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
                 openActivity<ExpandedImgListActivity>()
             }
 
+            binding.tvRadarChart -> {
+                openActivity<RadarChartViewActivity>()
+            }
+
             binding.tvTest -> {
                 openActivity<TestActivity>()
             }
