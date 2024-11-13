@@ -1,13 +1,20 @@
 package com.koi.projectlib.view
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
-import android.util.Log
 import android.util.TypedValue
 import android.view.View
 import com.drake.engine.utils.dp
 import com.drake.engine.utils.sp
+import kotlin.math.cos
+import kotlin.math.sin
+
+/**
+ * by koi
+ * 一个自定义的能力雷达图
+ * */
 
 class RadarChartView @JvmOverloads constructor(
     context: Context?,
@@ -34,8 +41,12 @@ class RadarChartView @JvmOverloads constructor(
     private val LADDER = 5f //阶梯数
     private val DATA_MAX = 100f //数据最大值
 
-    val textOffsetDp = 5.dp.toFloat()  // 文字的延伸偏移量，单位 dp
-    val textOffsetPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, textOffsetDp, resources.displayMetrics)
+    private val textOffsetDp = 5.dp.toFloat()  // 文字的延伸偏移量，单位 dp
+    private val textOffsetPx = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_DIP,
+        textOffsetDp,
+        resources.displayMetrics
+    )
 
     private fun intiConstant() {
         RADIUS = if (widthSize > heightSize) {
@@ -133,10 +144,11 @@ class RadarChartView @JvmOverloads constructor(
     }
 
     private var onceAngle = 0f
+    @SuppressLint("DrawAllocation")
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        if (functionsList == null || functionsList!!.size == 0) return
-        if (dataList == null || dataList!!.size == 0) return
+        if (functionsList == null || functionsList!!.isEmpty()) return
+        if (dataList == null || dataList!!.isEmpty()) return
         if (dataList!!.size != functionsList!!.size) return
 
         linePaint1!!.color = Color.parseColor("#FFE6CA")
@@ -152,22 +164,43 @@ class RadarChartView @JvmOverloads constructor(
         val functionsSize = functionsList!!.size.toFloat()
         onceAngle = 360 / functionsSize
         for (k in functionsList!!.indices) {
+            // 计算角度并进行偏移，确保第一条线垂直于上方
+            val angle = k * onceAngle - 90 // 偏移 90°，从顶部开始
+
+
+
             //绘制角度分割线
-            val lineEndX = cX + RADIUS * Math.cos(k * onceAngle / 180 * Math.PI).toFloat()
-            val lineEndY = cY + RADIUS * Math.sin(k * onceAngle / 180 * Math.PI).toFloat()
+            // 0度 开始绘制第一条线（右方）
+//            val lineEndX = cX + RADIUS * Math.cos(k * onceAngle / 180 * Math.PI).toFloat()
+//            val lineEndY = cY + RADIUS * Math.sin(k * onceAngle / 180 * Math.PI).toFloat()
+
+            // 90度 开始绘制第一条线（正上方）
+            val lineEndX = cX + RADIUS * cos(Math.toRadians(angle.toDouble())).toFloat()
+            val lineEndY = cY + RADIUS * sin(Math.toRadians(angle.toDouble())).toFloat()
             canvas.drawLine(cX, cY, lineEndX, lineEndY, linePaint2!!)
 
-            val textX = cX + (RADIUS + textOffsetPx) * Math.cos(k * onceAngle / 180 * Math.PI).toFloat()
-            val textY = cY + (RADIUS + textOffsetPx) * Math.sin(k * onceAngle / 180 * Math.PI).toFloat()
+            // 0度 开始绘制第一条线（右方）
+//            val textX = cX + (RADIUS + textOffsetPx) * Math.cos(k * onceAngle / 180 * Math.PI).toFloat()
+//            val textY = cY + (RADIUS + textOffsetPx) * Math.sin(k * onceAngle / 180 * Math.PI).toFloat()
+
+            // 90度 开始绘制第一条线（正上方）
+            val textX =
+                cX + (RADIUS + textOffsetPx) * cos(Math.toRadians(angle.toDouble())).toFloat()
+            val textY =
+                cY + (RADIUS + textOffsetPx) * sin(Math.toRadians(angle.toDouble())).toFloat()
 
             //绘制功能项名称
             if (lineEndX > cX) {
                 textPaint!!.textAlign = Paint.Align.LEFT
                 //在圆心右侧
                 canvas.drawText(functionsList!![k], textX, textY, textPaint!!)
-            } else {
+            } else if (lineEndX < cX) {
                 textPaint!!.textAlign = Paint.Align.RIGHT
                 //在圆心左侧
+                canvas.drawText(functionsList!![k], textX, textY, textPaint!!)
+            } else {
+                textPaint!!.textAlign = Paint.Align.CENTER
+                //在圆心正中
                 canvas.drawText(functionsList!![k], textX, textY, textPaint!!)
             }
         }
@@ -196,12 +229,12 @@ class RadarChartView @JvmOverloads constructor(
                 canvas.drawText(level, cX, cY - textYOffset, centerTextPaint!!)
 
                 //绘制刻度
-//                val textX = cX + onceLadderRadius * k * Math.cos(0 / 180 * Math.PI).toFloat()
-//                val textY = cY + onceLadderRadius * k * Math.sin(0 / 180 * Math.PI).toFloat()
+//                val textX = cX + onceLadderRadius * k * cos(0 / 180 * Math.PI).toFloat()
+//                val textY = cY + onceLadderRadius * k * sin(0 / 180 * Math.PI).toFloat()
 //                if (k.toFloat() == LADDER - 1) {
 //                    textPaint!!.color = Color.parseColor("#FF5722")
 //                    canvas.drawText(
-//                        (ladderData * k).toString() + "(" + unit + ")",
+//                        (ladderData * k).toString() + "(" + level + ")",
 //                        textX,
 //                        textY,
 //                        textPaint!!
@@ -219,24 +252,44 @@ class RadarChartView @JvmOverloads constructor(
         val points = mutableListOf<PointF>()
         val dataStep = RADIUS / DATA_MAX
 
-        val startX = cX + dataStep * dataList!![0] * Math.cos(0 * onceAngle / 180 * Math.PI)
+        // 0度 开始绘制第一条线（右边）
+//        val startX = cX + dataStep * dataList!![0] * Math.cos(0 * onceAngle / 180 * Math.PI)
+//            .toFloat()
+//        val startY = cY + dataStep * dataList!![0] * Math.sin(0 * onceAngle / 180 * Math.PI)
+//            .toFloat()
+
+        // 90度 开始绘制第一条线（正上方）
+        val startX = cX + dataStep * dataList!![0] * cos(Math.toRadians((0 * onceAngle.toDouble()) - 90))
             .toFloat()
-        val startY = cY + dataStep * dataList!![0] * Math.sin(0 * onceAngle / 180 * Math.PI)
+        val startY = cY + dataStep * dataList!![0] * sin(Math.toRadians((0 * onceAngle.toDouble()) - 90))
             .toFloat()
         // 先新增一个起始点
         points.add(PointF(startX, startY))
 
         for (k in dataList!!.indices) {
             if (k != dataList!!.size - 1) {
-                val startX = cX + dataStep * dataList!![k] * Math.cos(k * onceAngle / 180 * Math.PI)
+                // 0度 开始绘制第一条线（右边）
+//                val startX = cX + dataStep * dataList!![k] * Math.cos(k * onceAngle / 180 * Math.PI)
+//                    .toFloat()
+//                val startY = cY + dataStep * dataList!![k] * Math.sin(k * onceAngle / 180 * Math.PI)
+//                    .toFloat()
+//                val endX =
+//                    cX + dataStep * dataList!![k + 1] * Math.cos((k + 1) * onceAngle / 180 * Math.PI)
+//                        .toFloat()
+//                val endY =
+//                    cY + dataStep * dataList!![k + 1] * Math.sin((k + 1) * onceAngle / 180 * Math.PI)
+//                        .toFloat()
+
+                // 90度 开始绘制第一条线（正上方）
+                val startX = cX + dataStep * dataList!![k] * cos(Math.toRadians((k * onceAngle.toDouble()) - 90))
                     .toFloat()
-                val startY = cY + dataStep * dataList!![k] * Math.sin(k * onceAngle / 180 * Math.PI)
+                val startY = cY + dataStep * dataList!![k] * sin(Math.toRadians((k * onceAngle.toDouble()) - 90))
                     .toFloat()
                 val endX =
-                    cX + dataStep * dataList!![k + 1] * Math.cos((k + 1) * onceAngle / 180 * Math.PI)
+                    cX + dataStep * dataList!![k + 1] * cos(Math.toRadians(((k + 1) * onceAngle.toDouble()) - 90))
                         .toFloat()
                 val endY =
-                    cY + dataStep * dataList!![k + 1] * Math.sin((k + 1) * onceAngle / 180 * Math.PI)
+                    cY + dataStep * dataList!![k + 1] * sin(Math.toRadians(((k + 1) * onceAngle.toDouble()) - 90))
                         .toFloat()
 
                 val path = Path()
@@ -253,14 +306,25 @@ class RadarChartView @JvmOverloads constructor(
                 points.add(PointF(endX, endY))
             } else {
                 //最后一次画回原点
-                val startX = cX + dataStep * dataList!![k] * Math.cos(k * onceAngle / 180 * Math.PI)
+//                val startX = cX + dataStep * dataList!![k] * Math.cos(k * onceAngle / 180 * Math.PI)
+//                    .toFloat()
+//                val startY = cY + dataStep * dataList!![k] * Math.sin(k * onceAngle / 180 * Math.PI)
+//                    .toFloat()
+//                val endX = cX + dataStep * dataList!![0] * Math.cos(0 * onceAngle / 180 * Math.PI)
+//                    .toFloat()
+//                val endY = cY + dataStep * dataList!![0] * Math.sin(0 * onceAngle / 180 * Math.PI)
+//                    .toFloat()
+
+                // 90度 开始绘制第一条线（正上方）
+                val startX = cX + dataStep * dataList!![k] * cos(Math.toRadians((k * onceAngle.toDouble()) - 90))
                     .toFloat()
-                val startY = cY + dataStep * dataList!![k] * Math.sin(k * onceAngle / 180 * Math.PI)
+                val startY = cY + dataStep * dataList!![k] * sin(Math.toRadians((k * onceAngle.toDouble()) - 90))
                     .toFloat()
-                val endX = cX + dataStep * dataList!![0] * Math.cos(0 * onceAngle / 180 * Math.PI)
+                val endX = cX + dataStep * dataList!![0] * cos(Math.toRadians((0 * onceAngle.toDouble()) - 90))
                     .toFloat()
-                val endY = cY + dataStep * dataList!![0] * Math.sin(0 * onceAngle / 180 * Math.PI)
+                val endY = cY + dataStep * dataList!![0] * sin(Math.toRadians((0 * onceAngle.toDouble()) - 90))
                     .toFloat()
+
                 val path = Path()
                 path.moveTo(startX, startY)
                 path.lineTo(endX, endY)
