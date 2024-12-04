@@ -20,11 +20,13 @@ class MyRxFFmpegSubscriber(
     }
     override fun onError(message: String?) {
         Log.e("koi", "出错了 onError：$message")
+        compressDialog.updateTitle("视频压缩中")
         listener.onError()
         compressDialog.dismiss()
     }
 
     override fun onFinish() {
+        compressDialog.updateTitle("视频压缩中")
         listener.onFinish()
         compressDialog.dismiss()
 
@@ -32,11 +34,13 @@ class MyRxFFmpegSubscriber(
 
     override fun onProgress(progress: Int, progressTime: Long) {
         Log.e("koi", "progress ===  $progress")
+        compressDialog.updateTitle("视频压缩中 $progress %")
         compressDialog.show()
     }
 
     override fun onCancel() {
         Log.e("koi", "onCancel")
+        compressDialog.updateTitle("视频压缩中")
         compressDialog.dismiss()
     }
 
