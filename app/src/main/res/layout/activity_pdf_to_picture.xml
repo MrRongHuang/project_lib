@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+
 <layout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools">
@@ -7,14 +8,14 @@
 
         <variable
             name="v"
-            type="com.koi.projectlib.ui.ac.UploadFileActivity" />
+            type="com.koi.projectlib.ui.ac.PdfToPictureActivity" />
 
     </data>
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        tools:context=".ui.ac.UploadFileActivity">
+        tools:context=".ui.ac.PdfToPictureActivity">
 
 
         <com.hjq.bar.TitleBar
@@ -23,7 +24,7 @@
             android:layout_height="wrap_content"
             android:background="@color/teal_200"
             app:layout_constraintTop_toTopOf="parent"
-            app:title="文件上传" />
+            app:title="PDF 转 图片" />
 
         <androidx.core.widget.NestedScrollView
             android:layout_width="match_parent"
@@ -37,14 +38,14 @@
                 android:orientation="vertical">
 
                 <androidx.appcompat.widget.AppCompatTextView
-                    android:id="@+id/tvTest"
+                    android:id="@+id/tvChoosePdfFile"
                     click="@{v}"
                     android:layout_width="match_parent"
                     android:layout_height="45dp"
                     android:layout_marginTop="@dimen/dp_10"
                     android:background="@color/teal_200"
                     android:gravity="center"
-                    android:text="获取权限，并选择视频文件"
+                    android:text="获取权限，并选择PDF文件"
                     android:textColor="@color/white"
                     android:textSize="16sp" />
 

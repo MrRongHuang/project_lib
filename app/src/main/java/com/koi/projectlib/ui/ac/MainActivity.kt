@@ -52,6 +52,10 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
                 openActivity<UploadFileActivity>()
             }
 
+            binding.tvPdfToPicture -> {
+                openActivity<PdfToPictureActivity>()
+            }
+
             binding.tvTest -> {
                 openActivity<TestActivity>()
             }
