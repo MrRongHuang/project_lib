@@ -56,8 +56,12 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
                 openActivity<PdfToPictureActivity>()
             }
 
+            binding.tvAIChat -> {
+                openActivity<AIChatActivity>()
+            }
+
             binding.tvTest -> {
-                openActivity<TestActivity>()
+                openActivity<ZTestActivity>()
             }
         }
     }
