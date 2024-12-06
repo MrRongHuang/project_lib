@@ -48,6 +48,10 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
                 openActivity<RadarChartViewActivity>()
             }
 
+            binding.tvUploadFile -> {
+                openActivity<UploadFileActivity>()
+            }
+
             binding.tvTest -> {
                 openActivity<TestActivity>()
             }
