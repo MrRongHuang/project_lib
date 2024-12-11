@@ -60,6 +60,10 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
                 openActivity<AIChatActivity>()
             }
 
+            binding.tvForm -> {
+                openActivity<FormActivity>()
+            }
+
             binding.tvTest -> {
                 openActivity<ZTestActivity>()
             }

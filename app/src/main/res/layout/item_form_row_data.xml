@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<layout xmlns:tools="http://schemas.android.com/tools">
+
+    <data>
+
+        <variable
+            name="m"
+            type="com.koi.projectlib.model.RowData" />
+    </data>
+
+    <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/dp_36"
+            android:orientation="horizontal"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <com.hjq.shape.view.ShapeTextView
+                android:id="@+id/tvCategory"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="@dimen/dp_10"
+                android:paddingVertical="@dimen/dp_8"
+                android:text="@{m.category}"
+                android:textColor="@color/color_333333"
+                android:textSize="@dimen/sp_14"
+                android:ellipsize="none"
+                app:shape_topLeftRadius="@dimen/dp_10"
+                android:singleLine="false"
+                tools:text="品类" />
+
+            <View
+                android:id="@+id/viewLine"
+                android:layout_width="@dimen/dp_1"
+                android:layout_height="match_parent"
+                android:background="@color/color_e4e4e4"/>
+
+            <com.hjq.shape.view.ShapeTextView
+                android:id="@+id/tvBrand"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingVertical="@dimen/dp_8"
+                android:paddingHorizontal="@dimen/dp_10"
+                android:text="@{m.brand}"
+                android:textColor="@color/color_333333"
+                android:textSize="@dimen/sp_14"
+                android:ellipsize="none"
+                android:singleLine="false"
+                tools:text="牌号" />
+            <View
+                android:id="@+id/viewLine2"
+                android:layout_width="@dimen/dp_1"
+                android:layout_height="match_parent"
+                android:background="@color/color_e4e4e4"/>
+
+            <com.hjq.shape.view.ShapeTextView
+                android:id="@+id/tvManufacturer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingVertical="@dimen/dp_8"
+                android:paddingHorizontal="@dimen/dp_10"
+                android:text="@{m.manufacturer}"
+                android:textColor="@color/color_333333"
+                android:textSize="@dimen/sp_14"
+                android:ellipsize="none"
+                android:singleLine="false"
+                tools:text="厂商" />
+            <View
+                android:id="@+id/viewLine3"
+                android:layout_width="@dimen/dp_1"
+                android:layout_height="match_parent"
+                android:background="@color/color_e4e4e4"/>
+
+            <com.hjq.shape.view.ShapeTextView
+                android:id="@+id/tvPrice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingVertical="@dimen/dp_8"
+                android:paddingHorizontal="@dimen/dp_10"
+                android:text="@{m.price}"
+                android:textColor="@color/color_333333"
+                android:textSize="@dimen/sp_14"
+                android:ellipsize="none"
+                android:singleLine="false"
+                tools:text="价格" />
+            <View
+                android:id="@+id/viewLine4"
+                android:layout_width="@dimen/dp_1"
+                android:layout_height="match_parent"
+                android:background="@color/color_e4e4e4"/>
+
+            <com.hjq.shape.view.ShapeTextView
+                android:id="@+id/tvAddress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingVertical="@dimen/dp_8"
+                android:paddingHorizontal="@dimen/dp_10"
+                android:text="@{m.address}"
+                android:textColor="@color/color_333333"
+                android:textSize="@dimen/sp_14"
+                android:ellipsize="none"
+                android:singleLine="false"
+                tools:text="交货地" />
+            <View
+                android:id="@+id/viewLine5"
+                android:layout_width="@dimen/dp_1"
+                android:layout_height="match_parent"
+                android:background="@color/color_e4e4e4"/>
+
+            <com.hjq.shape.view.ShapeTextView
+                android:id="@+id/tvLogistics"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingVertical="@dimen/dp_8"
+                android:paddingHorizontal="@dimen/dp_10"
+                android:text="@{m.logistics}"
+                android:textColor="@color/color_333333"
+                android:textSize="@dimen/sp_14"
+                android:ellipsize="none"
+                android:singleLine="false"
+                tools:text="物流方式" />
+            <View
+                android:id="@+id/viewLine6"
+                android:layout_width="@dimen/dp_1"
+                android:layout_height="match_parent"
+                android:background="@color/color_e4e4e4"/>
+
+            <com.hjq.shape.view.ShapeTextView
+                android:id="@+id/tvTime"
+                app:shape_topRightRadius="@dimen/dp_10"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingVertical="@dimen/dp_8"
+                android:paddingHorizontal="@dimen/dp_10"
+                android:text="@{m.time}"
+                android:textColor="@color/color_333333"
+                android:textSize="@dimen/sp_14"
+                android:ellipsize="none"
+                android:singleLine="false"
+                tools:text="报价时间" />
+
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</layout>
+
+

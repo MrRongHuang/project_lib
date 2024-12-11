@@ -139,6 +139,18 @@
                     android:textSize="16sp" />
 
                 <androidx.appcompat.widget.AppCompatTextView
+                    android:id="@+id/tvForm"
+                    click="@{v}"
+                    android:layout_width="match_parent"
+                    android:layout_height="45dp"
+                    android:layout_marginTop="@dimen/dp_10"
+                    android:background="@color/teal_200"
+                    android:gravity="center"
+                    android:text="表单显示样式"
+                    android:textColor="@color/white"
+                    android:textSize="16sp" />
+
+                <androidx.appcompat.widget.AppCompatTextView
                     android:id="@+id/tvTest"
                     click="@{v}"
                     android:layout_width="match_parent"
